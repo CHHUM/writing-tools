@@ -84,10 +84,10 @@ function createTestDocument() {
     addSection(body, '6. Underlined Text Without Links (should be PURPLE)');
 
     const underlinedPara1 = body.appendParagraph('• This is underlined text but has no link');
-    underlinedPara1.editAsText().setUnderline(2, 43, true); // Underline "This is underlined text but has no link"
+    underlinedPara1.editAsText().setUnderline(2, 40, true); // Underline "This is underlined text but has no link"
 
     const underlinedPara2 = body.appendParagraph('• Another example of underlined text');
-    underlinedPara2.editAsText().setUnderline(2, 35, true);
+    underlinedPara2.editAsText().setUnderline(2, 34, true);
 
     const mixedPara = body.appendParagraph('• This paragraph has ');
     const underlinedText = mixedPara.appendText('underlined text');
@@ -180,13 +180,15 @@ function createTestDocument() {
     summary.setHeading(DocumentApp.ParagraphHeading.HEADING2);
 
     body.appendParagraph('After running "Check Links", you should see:');
-    body.appendParagraph('• RED highlights on broken/404 links (Section 2)');
-    body.appendParagraph('• YELLOW highlights on Apple.com links (Section 3)');
-    body.appendParagraph('• ORANGE highlights on invalid/malformed links (Section 5)');
-    body.appendParagraph('• PURPLE highlights on underlined text without links (Section 6)');
-    body.appendParagraph('• NO highlights on valid non-HTTP links (Section 4)');
-    body.appendParagraph('• NO highlights on working HTTP/HTTPS links (Section 1)');
-    body.appendParagraph('• All links should be blue and underlined (Section 7 should be auto-fixed)');
+    body.appendParagraph('• Section 1: NO highlights on working HTTP/HTTPS links');
+    body.appendParagraph('• Section 2: RED highlights on broken/404 links');
+    body.appendParagraph('• Section 3: YELLOW highlights on Apple.com links');
+    body.appendParagraph('• Section 4: NO highlights on valid non-HTTP links (skipped)');
+    body.appendParagraph('• Section 5: ORANGE highlights on invalid/malformed links');
+    body.appendParagraph('• Section 6: PURPLE highlights on underlined text without links');
+    body.appendParagraph('• Section 7: All links auto-fixed to blue and underlined');
+    body.appendParagraph('• Section 8: Mixed highlights based on link types');
+    body.appendParagraph('• Section 9: NO highlights on edge case links (all should work)');
 
     body.appendParagraph('');
     body.appendParagraph('After running "Fix Document Formatting", you should see:');
