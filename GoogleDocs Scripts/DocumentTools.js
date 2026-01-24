@@ -1,7 +1,8 @@
 /**
  * Google Docs Formatter & Link Checker
  *
- * This script provides tools to maintain document quality:
+ * Provides tools for maintaining document quality including link checking,
+ * formatting consistency, and text case transformations.
  *
  * LINK CHECKING:
  * - Checks all HTTP/HTTPS links for broken links (404 errors)
@@ -52,172 +53,103 @@
  * - Click Document Tools > Check Links > In Entire Document (or In Active Tab)
  * - Click Document Tools > Fix Document Formatting
  * - Select text and use Document Tools > Text Case submenu for case changes
- *
  */
 
-function checkLinks(scope) {
+// ============================================================================
+// CONFIGURATION CONSTANTS
+// ============================================================================
+
+const COLORS = {
+    BROKEN_LINK: '#FF0000',        // Red
+    APPLE_LINK: '#FFFF00',         // Yellow
+    INVALID_LINK: '#FFA500',       // Orange
+    MISSING_LINK: '#DDA0DD',       // Purple/Plum
+    LINK_BLUE: '#1155CC'           // Google Docs standard link color
+};
+
+const VALID_NON_HTTP_PROTOCOLS = ['mailto:', 'tel:', 'sms:', 'ftp:', 'sftp:', 'file:'];
+
+const DOCUMENT_STYLES = {
+    heading1: {
+        [DocumentApp.Attribute.FONT_FAMILY]: 'Helvetica Neue',
+        [DocumentApp.Attribute.FONT_SIZE]: 24,
+        [DocumentApp.Attribute.BOLD]: true
+    },
+    heading2: {
+        [DocumentApp.Attribute.FONT_FAMILY]: 'Helvetica Neue',
+        [DocumentApp.Attribute.FONT_SIZE]: 14,
+        [DocumentApp.Attribute.BOLD]: true
+    },
+    normal: {
+        [DocumentApp.Attribute.FONT_FAMILY]: 'Helvetica Neue',
+        [DocumentApp.Attribute.FONT_SIZE]: 11,
+        [DocumentApp.Attribute.BOLD]: false
+    }
+};
+
+const TITLE_CASE_LOWERCASE_WORDS = new Set([
+    'a', 'an', 'the',  // articles
+    'and', 'but', 'or', 'nor', 'for', 'so', 'yet',  // coordinating conjunctions
+    'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'off', 'on',
+    'onto', 'out', 'over', 'to', 'up', 'with', 'via'  // common prepositions
+]);
+
+// ============================================================================
+// UI & MENU FUNCTIONS
+// ============================================================================
+
+/**
+ * Creates custom menu when document is opened
+ */
+function onOpen() {
+    DocumentApp.getUi()
+        .createMenu('Document Tools')
+        .addSubMenu(DocumentApp.getUi().createMenu('Check Links')
+            .addItem('In Active Tab', 'checkLinksInActiveTab')
+            .addItem('In Entire Document', 'checkLinksInDocument'))
+        .addSeparator()
+        .addItem('Fix Document Formatting', 'fixDocumentFormatting')
+        .addSeparator()
+        .addSubMenu(DocumentApp.getUi().createMenu('Text Case')
+            .addItem('Lower case', 'convertToLowerCase')
+            .addItem('Upper case', 'convertToUpperCase')
+            .addItem('Initial Caps', 'convertToInitialCaps')
+            .addItem('Sentence case', 'convertToSentenceCase')
+            .addItem('Title Case (Chicago Style)', 'convertToTitleCase'))
+        .addToUi();
+}
+
+function showAlert(title, message) {
+    DocumentApp.getUi().alert(title, message, DocumentApp.getUi().ButtonSet.OK);
+}
+
+// ============================================================================
+// CORE UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Gets the document body based on scope (tab or entire document)
+ */
+function getDocumentBody(scope) {
     const doc = DocumentApp.getActiveDocument();
-    let body;
-    let scopeText = '';
 
     if (scope === 'tab') {
-        // Get the active tab
         const activeTab = doc.getActiveTab();
         if (!activeTab) {
-            DocumentApp.getUi().alert(
+            showAlert(
                 'No Active Tab',
-                'Could not find an active tab. The document might not have tabs, or you might need to click into a tab first.',
-                DocumentApp.getUi().ButtonSet.OK
+                'Could not find an active tab. The document might not have tabs, or you might need to click into a tab first.'
             );
-            return;
+            return null;
         }
-        body = activeTab.asDocumentTab().getBody();
-        scopeText = ' in active tab';
-    } else {
-        // Get the entire document body
-        body = doc.getBody();
-        scopeText = ' in document';
+        return activeTab.asDocumentTab().getBody();
     }
 
-    const text = body.editAsText();
-
-    // Get all links in the document
-    const links = [];
-    const underlinedText = [];
-    const numChildren = body.getNumChildren();
-
-    for (let i = 0; i < numChildren; i++) {
-        const child = body.getChild(i);
-        extractLinks(child, links);
-        extractUnderlinedText(child, underlinedText);
-    }
-
-    // Check each link
-    let brokenCount = 0;
-    let appleCount = 0;
-    let skippedCount = 0;
-    let invalidCount = 0;
-    let formattedCount = 0;
-    let missingLinkCount = 0;
-
-    // Valid non-HTTP protocols that should be skipped
-    const validProtocols = ['mailto:', 'tel:', 'sms:', 'ftp:', 'sftp:', 'file:'];
-
-    links.forEach(link => {
-        const url = link.url;
-        const startOffset = link.startOffset;
-        const endOffset = link.endOffset;
-        const element = link.element;
-        const urlLower = url.toLowerCase();
-
-        // Apply proper link formatting (blue text with underline)
-        const needsFormatting = applyLinkFormatting(element, startOffset, endOffset);
-        if (needsFormatting) {
-            formattedCount++;
-        }
-
-        // Check if it's a valid non-HTTP protocol
-        const isValidNonHttp = validProtocols.some(protocol => urlLower.startsWith(protocol));
-
-        if (isValidNonHttp) {
-            skippedCount++;
-            return; // Skip valid non-HTTP links
-        }
-
-        // Check if it's HTTP/HTTPS
-        const isHttp = urlLower.startsWith('http://') || urlLower.startsWith('https://');
-
-        if (!isHttp) {
-            // This is an invalid/unknown protocol or malformed link
-            element.setBackgroundColor(startOffset, endOffset - 1, '#FFA500'); // Orange for invalid
-            invalidCount++;
-            return;
-        }
-
-        // Check if it's an Apple.com link
-        if (urlLower.includes('apple.com')) {
-            element.setBackgroundColor(startOffset, endOffset - 1, '#FFFF00'); // Yellow
-            appleCount++;
-        }
-
-        // Check if link is broken (404)
-        try {
-            const response = UrlFetchApp.fetch(url, {
-                'muteHttpExceptions': true,
-                'followRedirects': false
-            });
-
-            if (response.getResponseCode() === 404) {
-                element.setBackgroundColor(startOffset, endOffset - 1, '#FF0000'); // Red
-                brokenCount++;
-            }
-        } catch (e) {
-            // If we can't fetch the URL, consider it potentially broken
-            element.setBackgroundColor(startOffset, endOffset - 1, '#FF0000'); // Red
-            brokenCount++;
-        }
-    });
-
-    // Check for underlined text without links (possible missing links)
-    underlinedText.forEach(item => {
-        const element = item.element;
-        const startOffset = item.startOffset;
-        const endOffset = item.endOffset;
-
-        // Highlight in purple as possible missing link
-        element.setBackgroundColor(startOffset, endOffset - 1, '#DDA0DD'); // Purple/Plum
-        missingLinkCount++;
-    });
-
-    // Show results
-    let message = `Found ${brokenCount} broken link(s) (highlighted in red)\n` +
-        `Found ${appleCount} Apple.com link(s) (highlighted in yellow)\n` +
-        `Skipped ${skippedCount} valid non-HTTP link(s) (email, phone, etc.)\n` +
-        `Fixed formatting on ${formattedCount} link(s)${scopeText}`;
-
-    if (invalidCount > 0) {
-        message += `\nFound ${invalidCount} invalid/malformed link(s) (highlighted in orange)`;
-    }
-
-    if (missingLinkCount > 0) {
-        message += `\nFound ${missingLinkCount} underlined text(s) without links (highlighted in purple)`;
-    }
-
-    DocumentApp.getUi().alert(
-        'Link Check Complete',
-        message,
-        DocumentApp.getUi().ButtonSet.OK
-    );
+    return doc.getBody();
 }
 
 /**
- * Apply proper link formatting (blue text with underline)
- * Returns true if formatting was needed, false if already correct
- */
-function applyLinkFormatting(element, startOffset, endOffset) {
-    let needsFormatting = false;
-
-    // Check current formatting
-    const currentColor = element.getForegroundColor(startOffset);
-    const currentUnderline = element.isUnderline(startOffset);
-
-    // Google Docs link blue color
-    const linkBlue = '#1155CC';
-
-    // Check if formatting needs to be applied
-    if (currentColor !== linkBlue || !currentUnderline) {
-        needsFormatting = true;
-    }
-
-    // Apply the formatting
-    element.setForegroundColor(startOffset, endOffset - 1, linkBlue);
-    element.setUnderline(startOffset, endOffset - 1, true);
-
-    return needsFormatting;
-}
-
-/**
- * Recursively extract all links from document elements
+ * Recursively extracts all links from document elements
  */
 function extractLinks(element, links) {
     if (element.getType() === DocumentApp.ElementType.TEXT) {
@@ -251,7 +183,7 @@ function extractLinks(element, links) {
 }
 
 /**
- * Recursively extract underlined text that is NOT a link
+ * Recursively extracts underlined text that is NOT a link
  */
 function extractUnderlinedText(element, underlinedText) {
     if (element.getType() === DocumentApp.ElementType.TEXT) {
@@ -263,15 +195,10 @@ function extractUnderlinedText(element, underlinedText) {
             const startOffset = indices[i];
             const endOffset = i + 1 < indices.length ? indices[i + 1] : textString.length;
 
-            // Check if this text is underlined
             const isUnderlined = text.isUnderline(startOffset);
-
-            // Check if this text has a link
             const hasLink = text.getLinkUrl(startOffset) !== null;
 
-            // If underlined but no link, it's a possible missing link
             if (isUnderlined && !hasLink) {
-                // Only flag non-empty text
                 const textContent = textString.substring(startOffset, endOffset).trim();
                 if (textContent.length > 0) {
                     underlinedText.push({
@@ -294,21 +221,199 @@ function extractUnderlinedText(element, underlinedText) {
 }
 
 /**
- * Check links in the entire document
+ * Processes selected text with a transformation function while preserving formatting
  */
+function processSelectedText(transformFn, errorMessage = 'Please select some text first.') {
+    const selection = DocumentApp.getActiveDocument().getSelection();
+
+    if (!selection) {
+        showAlert('No Selection', errorMessage);
+        return;
+    }
+
+    const elements = selection.getRangeElements();
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        if (element.getElement().editAsText) {
+            const text = element.getElement().editAsText();
+            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
+            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
+
+            const selectedText = text.getText().substring(startOffset, endOffset + 1);
+            const transformedText = transformFn(selectedText);
+
+            // Update character by character to preserve formatting
+            for (let j = 0; j <= endOffset - startOffset; j++) {
+                const pos = startOffset + j;
+                const originalChar = selectedText.charAt(j);
+                const newChar = transformedText.charAt(j);
+
+                if (originalChar !== newChar) {
+                    text.deleteText(pos, pos);
+                    text.insertText(pos, newChar);
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// LINK CHECKING FUNCTIONS
+// ============================================================================
+
+/**
+ * Applies proper link formatting (blue text with underline)
+ * Returns true if formatting was needed, false if already correct
+ */
+function applyLinkFormatting(element, startOffset, endOffset) {
+    const currentColor = element.getForegroundColor(startOffset);
+    const currentUnderline = element.isUnderline(startOffset);
+
+    const needsFormatting = currentColor !== COLORS.LINK_BLUE || !currentUnderline;
+
+    element.setForegroundColor(startOffset, endOffset - 1, COLORS.LINK_BLUE);
+    element.setUnderline(startOffset, endOffset - 1, true);
+
+    return needsFormatting;
+}
+
+/**
+ * Checks if a link is broken (returns 404)
+ */
+function isLinkBroken(url) {
+    try {
+        const response = UrlFetchApp.fetch(url, {
+            'muteHttpExceptions': true,
+            'followRedirects': false
+        });
+        return response.getResponseCode() === 404;
+    } catch (e) {
+        return true; // Consider unfetchable URLs as broken
+    }
+}
+
+/**
+ * Processes a single link and returns classification
+ */
+function processLink(link) {
+    const { url, startOffset, endOffset, element } = link;
+    const urlLower = url.toLowerCase();
+
+    // Apply proper link formatting
+    const needsFormatting = applyLinkFormatting(element, startOffset, endOffset);
+
+    // Check if it's a valid non-HTTP protocol
+    const isValidNonHttp = VALID_NON_HTTP_PROTOCOLS.some(protocol => urlLower.startsWith(protocol));
+
+    if (isValidNonHttp) {
+        return { type: 'skipped', needsFormatting };
+    }
+
+    // Check if it's HTTP/HTTPS
+    const isHttp = urlLower.startsWith('http://') || urlLower.startsWith('https://');
+
+    if (!isHttp) {
+        element.setBackgroundColor(startOffset, endOffset - 1, COLORS.INVALID_LINK);
+        return { type: 'invalid', needsFormatting };
+    }
+
+    // Check if it's an Apple.com link
+    if (urlLower.includes('apple.com')) {
+        element.setBackgroundColor(startOffset, endOffset - 1, COLORS.APPLE_LINK);
+
+        // Also check if it's broken
+        if (isLinkBroken(url)) {
+            element.setBackgroundColor(startOffset, endOffset - 1, COLORS.BROKEN_LINK);
+            return { type: 'broken', needsFormatting };
+        }
+
+        return { type: 'apple', needsFormatting };
+    }
+
+    // Check if link is broken
+    if (isLinkBroken(url)) {
+        element.setBackgroundColor(startOffset, endOffset - 1, COLORS.BROKEN_LINK);
+        return { type: 'broken', needsFormatting };
+    }
+
+    return { type: 'valid', needsFormatting };
+}
+
+/**
+ * Main link checking function
+ */
+function checkLinks(scope) {
+    const body = getDocumentBody(scope);
+    if (!body) return;
+
+    const scopeText = scope === 'tab' ? ' in active tab' : ' in document';
+
+    // Extract all links and underlined text
+    const links = [];
+    const underlinedText = [];
+    const numChildren = body.getNumChildren();
+
+    for (let i = 0; i < numChildren; i++) {
+        const child = body.getChild(i);
+        extractLinks(child, links);
+        extractUnderlinedText(child, underlinedText);
+    }
+
+    // Process links and count results
+    const counts = {
+        broken: 0,
+        apple: 0,
+        skipped: 0,
+        invalid: 0,
+        formatted: 0,
+        missingLink: 0
+    };
+
+    links.forEach(link => {
+        const result = processLink(link);
+        counts[result.type]++;
+        if (result.needsFormatting) counts.formatted++;
+    });
+
+    // Highlight underlined text without links
+    underlinedText.forEach(item => {
+        item.element.setBackgroundColor(item.startOffset, item.endOffset - 1, COLORS.MISSING_LINK);
+        counts.missingLink++;
+    });
+
+    // Build result message
+    let message = `Found ${counts.broken} broken link(s) (highlighted in red)\n` +
+        `Found ${counts.apple} Apple.com link(s) (highlighted in yellow)\n` +
+        `Skipped ${counts.skipped} valid non-HTTP link(s) (email, phone, etc.)\n` +
+        `Fixed formatting on ${counts.formatted} link(s)${scopeText}`;
+
+    if (counts.invalid > 0) {
+        message += `\nFound ${counts.invalid} invalid/malformed link(s) (highlighted in orange)`;
+    }
+
+    if (counts.missingLink > 0) {
+        message += `\nFound ${counts.missingLink} underlined text(s) without links (highlighted in purple)`;
+    }
+
+    showAlert('Link Check Complete', message);
+}
+
 function checkLinksInDocument() {
     checkLinks('document');
 }
 
-/**
- * Check links in the active tab only
- */
 function checkLinksInActiveTab() {
     checkLinks('tab');
 }
 
+// ============================================================================
+// DOCUMENT FORMATTING FUNCTIONS
+// ============================================================================
+
 /**
- * Fix document formatting with standard styles
+ * Applies consistent typography throughout the document
  * Heading 1: Helvetica Neue Bold 24pt
  * Heading 2: Helvetica Neue Bold 14pt
  * Normal Text: Helvetica Neue 11pt
@@ -317,28 +422,7 @@ function fixDocumentFormatting() {
     const doc = DocumentApp.getActiveDocument();
     const body = doc.getBody();
 
-    // Define styles
-    const heading1Style = {};
-    heading1Style[DocumentApp.Attribute.FONT_FAMILY] = 'Helvetica Neue';
-    heading1Style[DocumentApp.Attribute.FONT_SIZE] = 24;
-    heading1Style[DocumentApp.Attribute.BOLD] = true;
-
-    const heading2Style = {};
-    heading2Style[DocumentApp.Attribute.FONT_FAMILY] = 'Helvetica Neue';
-    heading2Style[DocumentApp.Attribute.FONT_SIZE] = 14;
-    heading2Style[DocumentApp.Attribute.BOLD] = true;
-
-    const normalStyle = {};
-    normalStyle[DocumentApp.Attribute.FONT_FAMILY] = 'Helvetica Neue';
-    normalStyle[DocumentApp.Attribute.FONT_SIZE] = 11;
-    normalStyle[DocumentApp.Attribute.BOLD] = false;
-
-    // Count how many paragraphs were styled
-    let h1Count = 0;
-    let h2Count = 0;
-    let normalCount = 0;
-
-    // Apply styles to all paragraphs in the document
+    const counts = { h1: 0, h2: 0, normal: 0 };
     const numChildren = body.getNumChildren();
 
     for (let i = 0; i < numChildren; i++) {
@@ -349,333 +433,92 @@ function fixDocumentFormatting() {
             const heading = paragraph.getHeading();
 
             if (heading === DocumentApp.ParagraphHeading.HEADING1) {
-                paragraph.setAttributes(heading1Style);
-                h1Count++;
+                paragraph.setAttributes(DOCUMENT_STYLES.heading1);
+                counts.h1++;
             } else if (heading === DocumentApp.ParagraphHeading.HEADING2) {
-                paragraph.setAttributes(heading2Style);
-                h2Count++;
+                paragraph.setAttributes(DOCUMENT_STYLES.heading2);
+                counts.h2++;
             } else if (heading === DocumentApp.ParagraphHeading.NORMAL) {
-                paragraph.setAttributes(normalStyle);
-                normalCount++;
+                paragraph.setAttributes(DOCUMENT_STYLES.normal);
+                counts.normal++;
             }
         }
     }
 
-    // Show results
     const message = `Document formatting updated:\n` +
-        `${h1Count} Heading 1 paragraph(s) formatted (Helvetica Neue Bold 24pt)\n` +
-        `${h2Count} Heading 2 paragraph(s) formatted (Helvetica Neue Bold 14pt)\n` +
-        `${normalCount} Normal text paragraph(s) formatted (Helvetica Neue 11pt)`;
+        `${counts.h1} Heading 1 paragraph(s) formatted (Helvetica Neue Bold 24pt)\n` +
+        `${counts.h2} Heading 2 paragraph(s) formatted (Helvetica Neue Bold 14pt)\n` +
+        `${counts.normal} Normal text paragraph(s) formatted (Helvetica Neue 11pt)`;
 
-    DocumentApp.getUi().alert(
-        'Formatting Complete',
-        message,
-        DocumentApp.getUi().ButtonSet.OK
-    );
+    showAlert('Formatting Complete', message);
 }
 
-/**
- * Convert selected text to lowercase
- */
+// ============================================================================
+// TEXT CASE TRANSFORMATION FUNCTIONS
+// ============================================================================
+
 function convertToLowerCase() {
-    const selection = DocumentApp.getActiveDocument().getSelection();
-
-    if (!selection) {
-        DocumentApp.getUi().alert(
-            'No Selection',
-            'Please select some text first.',
-            DocumentApp.getUi().ButtonSet.OK
-        );
-        return;
-    }
-
-    const elements = selection.getRangeElements();
-
-    for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
-
-        if (element.getElement().editAsText) {
-            const text = element.getElement().editAsText();
-            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
-            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
-
-            const selectedText = text.getText().substring(startOffset, endOffset + 1);
-            const lowerText = selectedText.toLowerCase();
-
-            // Process character by character to preserve formatting
-            for (let j = 0; j <= endOffset - startOffset; j++) {
-                const pos = startOffset + j;
-                const originalChar = selectedText.charAt(j);
-                const newChar = lowerText.charAt(j);
-
-                if (originalChar !== newChar) {
-                    text.deleteText(pos, pos);
-                    text.insertText(pos, newChar);
-                }
-            }
-        }
-    }
+    processSelectedText(text => text.toLowerCase());
 }
 
-/**
- * Convert selected text to uppercase
- */
 function convertToUpperCase() {
-    const selection = DocumentApp.getActiveDocument().getSelection();
-
-    if (!selection) {
-        DocumentApp.getUi().alert(
-            'No Selection',
-            'Please select some text first.',
-            DocumentApp.getUi().ButtonSet.OK
-        );
-        return;
-    }
-
-    const elements = selection.getRangeElements();
-
-    for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
-
-        if (element.getElement().editAsText) {
-            const text = element.getElement().editAsText();
-            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
-            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
-
-            const selectedText = text.getText().substring(startOffset, endOffset + 1);
-            const upperText = selectedText.toUpperCase();
-
-            // Process character by character to preserve formatting
-            for (let j = 0; j <= endOffset - startOffset; j++) {
-                const pos = startOffset + j;
-                const originalChar = selectedText.charAt(j);
-                const newChar = upperText.charAt(j);
-
-                if (originalChar !== newChar) {
-                    text.deleteText(pos, pos);
-                    text.insertText(pos, newChar);
-                }
-            }
-        }
-    }
+    processSelectedText(text => text.toUpperCase());
 }
 
-/**
- * Convert selected text to Initial Caps (capitalize first letter of each word)
- */
 function convertToInitialCaps() {
-    const selection = DocumentApp.getActiveDocument().getSelection();
-
-    if (!selection) {
-        DocumentApp.getUi().alert(
-            'No Selection',
-            'Please select some text first.',
-            DocumentApp.getUi().ButtonSet.OK
-        );
-        return;
-    }
-
-    const elements = selection.getRangeElements();
-
-    for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
-
-        if (element.getElement().editAsText) {
-            const text = element.getElement().editAsText();
-            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
-            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
-
-            const selectedText = text.getText().substring(startOffset, endOffset + 1);
-
-            // Convert to initial caps (capitalize first letter of each word)
-            const initialCapsText = selectedText.replace(/\b\w/g, function(char) {
-                return char.toUpperCase();
-            });
-
-            // Process character by character to preserve formatting
-            for (let j = 0; j <= endOffset - startOffset; j++) {
-                const pos = startOffset + j;
-                const originalChar = selectedText.charAt(j);
-                const newChar = initialCapsText.charAt(j);
-
-                if (originalChar !== newChar) {
-                    text.deleteText(pos, pos);
-                    text.insertText(pos, newChar);
-                }
-            }
-        }
-    }
+    processSelectedText(text => {
+        return text.replace(/\b\w/g, char => char.toUpperCase());
+    });
 }
 
-/**
- * Convert selected text to Sentence case (capitalize only first letter)
- */
 function convertToSentenceCase() {
-    const selection = DocumentApp.getActiveDocument().getSelection();
-
-    if (!selection) {
-        DocumentApp.getUi().alert(
-            'No Selection',
-            'Please select some text first.',
-            DocumentApp.getUi().ButtonSet.OK
-        );
-        return;
-    }
-
-    const elements = selection.getRangeElements();
-
-    for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
-
-        if (element.getElement().editAsText) {
-            const text = element.getElement().editAsText();
-            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
-            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
-
-            const selectedText = text.getText().substring(startOffset, endOffset + 1);
-
-            // Convert to sentence case (first letter uppercase, rest lowercase)
-            let sentenceCaseText = selectedText.toLowerCase();
-            if (sentenceCaseText.length > 0) {
-                sentenceCaseText = sentenceCaseText.charAt(0).toUpperCase() + sentenceCaseText.slice(1);
-            }
-
-            // Process character by character to preserve formatting
-            for (let j = 0; j <= endOffset - startOffset; j++) {
-                const pos = startOffset + j;
-                const originalChar = selectedText.charAt(j);
-                const newChar = sentenceCaseText.charAt(j);
-
-                if (originalChar !== newChar) {
-                    text.deleteText(pos, pos);
-                    text.insertText(pos, newChar);
-                }
-            }
-        }
-    }
+    processSelectedText(text => {
+        const lower = text.toLowerCase();
+        return lower.length > 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
+    });
 }
 
-/**
- * Convert selected text to Title Case using Chicago Style rules
- * - Capitalizes first and last words
- * - Capitalizes all major words (nouns, pronouns, verbs, adjectives, adverbs)
- * - Lowercases articles, coordinating conjunctions, and prepositions
- * - Capitalizes first word after colon or dash
- */
 function convertToTitleCase() {
-    const selection = DocumentApp.getActiveDocument().getSelection();
+    processSelectedText(text => {
+        const words = text.split(/(\s+|[-—:])/);
+        let afterColonOrDash = false;
 
-    if (!selection) {
-        DocumentApp.getUi().alert(
-            'No Selection',
-            'Please select some text first.',
-            DocumentApp.getUi().ButtonSet.OK
-        );
-        return;
-    }
-
-    const elements = selection.getRangeElements();
-
-    // Words to lowercase (Chicago Style)
-    const lowercaseWords = new Set([
-        'a', 'an', 'the',  // articles
-        'and', 'but', 'or', 'nor', 'for', 'so', 'yet',  // coordinating conjunctions
-        'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'off', 'on',
-        'onto', 'out', 'over', 'to', 'up', 'with', 'via'  // common prepositions
-    ]);
-
-    for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
-
-        if (element.getElement().editAsText) {
-            const text = element.getElement().editAsText();
-            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
-            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
-
-            const selectedText = text.getText().substring(startOffset, endOffset + 1);
-
-            // Split into words while preserving whitespace and punctuation
-            const words = selectedText.split(/(\s+|[-—:])/);
-            let afterColonOrDash = false;
-
-            const titleCaseWords = words.map((word, index) => {
-                // Preserve whitespace and punctuation
-                if (/^\s+$/.test(word) || word === '-' || word === '—') {
-                    return word;
-                }
-
-                // Track colons and dashes
-                if (word === ':') {
-                    afterColonOrDash = true;
-                    return word;
-                }
-
-                // Get the actual word without leading/trailing punctuation
-                const match = word.match(/^(\W*)(\w+)(\W*)$/);
-                if (!match) return word;
-
-                const [, prefix, actualWord, suffix] = match;
-                const lowerWord = actualWord.toLowerCase();
-
-                // Determine if we should capitalize
-                let shouldCapitalize = false;
-
-                // Always capitalize first and last actual words
-                const isFirstWord = words.slice(0, index).every(w => /^\s+$/.test(w) || w === '-' || w === '—' || w === ':');
-                const isLastWord = words.slice(index + 1).every(w => /^\s+$/.test(w) || w === '-' || w === '—' || w === ':');
-
-                if (isFirstWord || isLastWord || afterColonOrDash) {
-                    shouldCapitalize = true;
-                } else if (!lowercaseWords.has(lowerWord)) {
-                    shouldCapitalize = true;
-                }
-
-                // Reset after using the flag
-                if (afterColonOrDash && /\w/.test(word)) {
-                    afterColonOrDash = false;
-                }
-
-                const capitalizedWord = shouldCapitalize
-                    ? lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1)
-                    : lowerWord;
-
-                return prefix + capitalizedWord + suffix;
-            });
-
-            const titleCaseText = titleCaseWords.join('');
-
-            // Process character by character to preserve formatting
-            for (let j = 0; j <= endOffset - startOffset; j++) {
-                const pos = startOffset + j;
-                const originalChar = selectedText.charAt(j);
-                const newChar = titleCaseText.charAt(j);
-
-                if (originalChar !== newChar) {
-                    text.deleteText(pos, pos);
-                    text.insertText(pos, newChar);
-                }
+        const titleCaseWords = words.map((word, index) => {
+            // Preserve whitespace and punctuation
+            if (/^\s+$/.test(word) || word === '-' || word === '—') {
+                return word;
             }
-        }
-    }
-}
 
-/**
- * Creates a custom menu when the document is opened
- */
-function onOpen() {
-    DocumentApp.getUi()
-        .createMenu('Document Tools')
-        .addSubMenu(DocumentApp.getUi().createMenu('Check Links')
-            .addItem('In Active Tab', 'checkLinksInActiveTab')
-            .addItem('In Entire Document', 'checkLinksInDocument'))
-        .addSeparator()
-        .addItem('Fix Document Formatting', 'fixDocumentFormatting')
-        .addSeparator()
-        .addSubMenu(DocumentApp.getUi().createMenu('Text Case')
-            .addItem('Lower case', 'convertToLowerCase')
-            .addItem('Upper case', 'convertToUpperCase')
-            .addItem('Initial Caps', 'convertToInitialCaps')
-            .addItem('Sentence case', 'convertToSentenceCase')
-            .addItem('Title Case (Chicago Style)', 'convertToTitleCase'))
-        .addToUi();
+            if (word === ':') {
+                afterColonOrDash = true;
+                return word;
+            }
+
+            // Extract word without leading/trailing punctuation
+            const match = word.match(/^(\W*)(\w+)(\W*)$/);
+            if (!match) return word;
+
+            const [, prefix, actualWord, suffix] = match;
+            const lowerWord = actualWord.toLowerCase();
+
+            // Determine if we should capitalize
+            const isFirstWord = words.slice(0, index).every(w => /^\s+$/.test(w) || w === '-' || w === '—' || w === ':');
+            const isLastWord = words.slice(index + 1).every(w => /^\s+$/.test(w) || w === '-' || w === '—' || w === ':');
+
+            const shouldCapitalize = isFirstWord || isLastWord || afterColonOrDash ||
+                !TITLE_CASE_LOWERCASE_WORDS.has(lowerWord);
+
+            if (afterColonOrDash && /\w/.test(word)) {
+                afterColonOrDash = false;
+            }
+
+            const capitalizedWord = shouldCapitalize
+                ? lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1)
+                : lowerWord;
+
+            return prefix + capitalizedWord + suffix;
+        });
+
+        return titleCaseWords.join('');
+    });
 }
