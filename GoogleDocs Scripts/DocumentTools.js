@@ -28,6 +28,13 @@
  * - Heading 2: Helvetica Neue Bold 14pt
  * - Normal Text: Helvetica Neue 11pt
  *
+ * TEXT CASE TOOLS:
+ * - Lower case: Converts selected text to lowercase
+ * - Upper case: Converts selected text to uppercase
+ * - Initial Caps: Capitalizes the first letter of each word
+ * - Sentence case: Capitalizes only the first letter of the selection
+ * - Title Case (Chicago Style): Proper title capitalization following Chicago Manual of Style
+ *
  * NOTES:
  * - The script may take a while if you have many links, as it checks each one individually
  * - Google Apps Script has rate limits on external URL fetches
@@ -42,9 +49,9 @@
  * 6. You'll now see a "Document Tools" menu in your document
  *
  * TO USE IT:
- * - Click Document Tools > Check Links in Entire Document (or Active Tab)
+ * - Click Document Tools > Check Links > In Entire Document (or In Active Tab)
  * - Click Document Tools > Fix Document Formatting
- * - Review the results shown in the dialog
+ * - Select text and use Document Tools > Text Case submenu for case changes
  *
  */
 
@@ -368,14 +375,307 @@ function fixDocumentFormatting() {
 }
 
 /**
+ * Convert selected text to lowercase
+ */
+function convertToLowerCase() {
+    const selection = DocumentApp.getActiveDocument().getSelection();
+
+    if (!selection) {
+        DocumentApp.getUi().alert(
+            'No Selection',
+            'Please select some text first.',
+            DocumentApp.getUi().ButtonSet.OK
+        );
+        return;
+    }
+
+    const elements = selection.getRangeElements();
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        if (element.getElement().editAsText) {
+            const text = element.getElement().editAsText();
+            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
+            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
+
+            const selectedText = text.getText().substring(startOffset, endOffset + 1);
+            const lowerText = selectedText.toLowerCase();
+
+            // Process character by character to preserve formatting
+            for (let j = 0; j <= endOffset - startOffset; j++) {
+                const pos = startOffset + j;
+                const originalChar = selectedText.charAt(j);
+                const newChar = lowerText.charAt(j);
+
+                if (originalChar !== newChar) {
+                    text.deleteText(pos, pos);
+                    text.insertText(pos, newChar);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Convert selected text to uppercase
+ */
+function convertToUpperCase() {
+    const selection = DocumentApp.getActiveDocument().getSelection();
+
+    if (!selection) {
+        DocumentApp.getUi().alert(
+            'No Selection',
+            'Please select some text first.',
+            DocumentApp.getUi().ButtonSet.OK
+        );
+        return;
+    }
+
+    const elements = selection.getRangeElements();
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        if (element.getElement().editAsText) {
+            const text = element.getElement().editAsText();
+            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
+            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
+
+            const selectedText = text.getText().substring(startOffset, endOffset + 1);
+            const upperText = selectedText.toUpperCase();
+
+            // Process character by character to preserve formatting
+            for (let j = 0; j <= endOffset - startOffset; j++) {
+                const pos = startOffset + j;
+                const originalChar = selectedText.charAt(j);
+                const newChar = upperText.charAt(j);
+
+                if (originalChar !== newChar) {
+                    text.deleteText(pos, pos);
+                    text.insertText(pos, newChar);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Convert selected text to Initial Caps (capitalize first letter of each word)
+ */
+function convertToInitialCaps() {
+    const selection = DocumentApp.getActiveDocument().getSelection();
+
+    if (!selection) {
+        DocumentApp.getUi().alert(
+            'No Selection',
+            'Please select some text first.',
+            DocumentApp.getUi().ButtonSet.OK
+        );
+        return;
+    }
+
+    const elements = selection.getRangeElements();
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        if (element.getElement().editAsText) {
+            const text = element.getElement().editAsText();
+            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
+            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
+
+            const selectedText = text.getText().substring(startOffset, endOffset + 1);
+
+            // Convert to initial caps (capitalize first letter of each word)
+            const initialCapsText = selectedText.replace(/\b\w/g, function(char) {
+                return char.toUpperCase();
+            });
+
+            // Process character by character to preserve formatting
+            for (let j = 0; j <= endOffset - startOffset; j++) {
+                const pos = startOffset + j;
+                const originalChar = selectedText.charAt(j);
+                const newChar = initialCapsText.charAt(j);
+
+                if (originalChar !== newChar) {
+                    text.deleteText(pos, pos);
+                    text.insertText(pos, newChar);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Convert selected text to Sentence case (capitalize only first letter)
+ */
+function convertToSentenceCase() {
+    const selection = DocumentApp.getActiveDocument().getSelection();
+
+    if (!selection) {
+        DocumentApp.getUi().alert(
+            'No Selection',
+            'Please select some text first.',
+            DocumentApp.getUi().ButtonSet.OK
+        );
+        return;
+    }
+
+    const elements = selection.getRangeElements();
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        if (element.getElement().editAsText) {
+            const text = element.getElement().editAsText();
+            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
+            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
+
+            const selectedText = text.getText().substring(startOffset, endOffset + 1);
+
+            // Convert to sentence case (first letter uppercase, rest lowercase)
+            let sentenceCaseText = selectedText.toLowerCase();
+            if (sentenceCaseText.length > 0) {
+                sentenceCaseText = sentenceCaseText.charAt(0).toUpperCase() + sentenceCaseText.slice(1);
+            }
+
+            // Process character by character to preserve formatting
+            for (let j = 0; j <= endOffset - startOffset; j++) {
+                const pos = startOffset + j;
+                const originalChar = selectedText.charAt(j);
+                const newChar = sentenceCaseText.charAt(j);
+
+                if (originalChar !== newChar) {
+                    text.deleteText(pos, pos);
+                    text.insertText(pos, newChar);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Convert selected text to Title Case using Chicago Style rules
+ * - Capitalizes first and last words
+ * - Capitalizes all major words (nouns, pronouns, verbs, adjectives, adverbs)
+ * - Lowercases articles, coordinating conjunctions, and prepositions
+ * - Capitalizes first word after colon or dash
+ */
+function convertToTitleCase() {
+    const selection = DocumentApp.getActiveDocument().getSelection();
+
+    if (!selection) {
+        DocumentApp.getUi().alert(
+            'No Selection',
+            'Please select some text first.',
+            DocumentApp.getUi().ButtonSet.OK
+        );
+        return;
+    }
+
+    const elements = selection.getRangeElements();
+
+    // Words to lowercase (Chicago Style)
+    const lowercaseWords = new Set([
+        'a', 'an', 'the',  // articles
+        'and', 'but', 'or', 'nor', 'for', 'so', 'yet',  // coordinating conjunctions
+        'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'off', 'on',
+        'onto', 'out', 'over', 'to', 'up', 'with', 'via'  // common prepositions
+    ]);
+
+    for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+
+        if (element.getElement().editAsText) {
+            const text = element.getElement().editAsText();
+            const startOffset = element.isPartial() ? element.getStartOffset() : 0;
+            const endOffset = element.isPartial() ? element.getEndOffsetInclusive() : text.getText().length - 1;
+
+            const selectedText = text.getText().substring(startOffset, endOffset + 1);
+
+            // Split into words while preserving whitespace and punctuation
+            const words = selectedText.split(/(\s+|[-—:])/);
+            let afterColonOrDash = false;
+
+            const titleCaseWords = words.map((word, index) => {
+                // Preserve whitespace and punctuation
+                if (/^\s+$/.test(word) || word === '-' || word === '—') {
+                    return word;
+                }
+
+                // Track colons and dashes
+                if (word === ':') {
+                    afterColonOrDash = true;
+                    return word;
+                }
+
+                // Get the actual word without leading/trailing punctuation
+                const match = word.match(/^(\W*)(\w+)(\W*)$/);
+                if (!match) return word;
+
+                const [, prefix, actualWord, suffix] = match;
+                const lowerWord = actualWord.toLowerCase();
+
+                // Determine if we should capitalize
+                let shouldCapitalize = false;
+
+                // Always capitalize first and last actual words
+                const isFirstWord = words.slice(0, index).every(w => /^\s+$/.test(w) || w === '-' || w === '—' || w === ':');
+                const isLastWord = words.slice(index + 1).every(w => /^\s+$/.test(w) || w === '-' || w === '—' || w === ':');
+
+                if (isFirstWord || isLastWord || afterColonOrDash) {
+                    shouldCapitalize = true;
+                } else if (!lowercaseWords.has(lowerWord)) {
+                    shouldCapitalize = true;
+                }
+
+                // Reset after using the flag
+                if (afterColonOrDash && /\w/.test(word)) {
+                    afterColonOrDash = false;
+                }
+
+                const capitalizedWord = shouldCapitalize
+                    ? lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1)
+                    : lowerWord;
+
+                return prefix + capitalizedWord + suffix;
+            });
+
+            const titleCaseText = titleCaseWords.join('');
+
+            // Process character by character to preserve formatting
+            for (let j = 0; j <= endOffset - startOffset; j++) {
+                const pos = startOffset + j;
+                const originalChar = selectedText.charAt(j);
+                const newChar = titleCaseText.charAt(j);
+
+                if (originalChar !== newChar) {
+                    text.deleteText(pos, pos);
+                    text.insertText(pos, newChar);
+                }
+            }
+        }
+    }
+}
+
+/**
  * Creates a custom menu when the document is opened
  */
 function onOpen() {
     DocumentApp.getUi()
         .createMenu('Document Tools')
-        .addItem('Check Links in Entire Document', 'checkLinksInDocument')
-        .addItem('Check Links in Active Tab', 'checkLinksInActiveTab')
+        .addSubMenu(DocumentApp.getUi().createMenu('Check Links')
+            .addItem('In Active Tab', 'checkLinksInActiveTab')
+            .addItem('In Entire Document', 'checkLinksInDocument'))
         .addSeparator()
         .addItem('Fix Document Formatting', 'fixDocumentFormatting')
+        .addSeparator()
+        .addSubMenu(DocumentApp.getUi().createMenu('Text Case')
+            .addItem('Lower case', 'convertToLowerCase')
+            .addItem('Upper case', 'convertToUpperCase')
+            .addItem('Initial Caps', 'convertToInitialCaps')
+            .addItem('Sentence case', 'convertToSentenceCase')
+            .addItem('Title Case (Chicago Style)', 'convertToTitleCase'))
         .addToUi();
 }

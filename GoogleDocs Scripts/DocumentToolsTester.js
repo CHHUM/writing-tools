@@ -26,6 +26,13 @@
  * - Heading 1 should become: Helvetica Neue Bold 24pt
  * - Heading 2 should become: Helvetica Neue Bold 14pt
  * - Normal text should become: Helvetica Neue 11pt
+ *
+ * TEXT CASE TOOLS:
+ * - Lower case: Converts to all lowercase
+ * - Upper case: Converts to all uppercase
+ * - Initial Caps: Capitalizes first letter of each word
+ * - Sentence case: Capitalizes only first letter
+ * - Title Case (Chicago Style): Proper title capitalization
  */
 
 function createTestDocument() {
@@ -80,7 +87,7 @@ function createTestDocument() {
     addTestLink(body, 'Just text', 'not-a-real-link');
     body.appendParagraph('');
 
-    // Section 6: Underlined text without links (NEW!)
+    // Section 6: Underlined text without links
     addSection(body, '6. Underlined Text Without Links (should be PURPLE)');
 
     const underlinedPara1 = body.appendParagraph('• This is underlined text but has no link');
@@ -174,12 +181,94 @@ function createTestDocument() {
 
     body.appendParagraph('');
 
+    // Section 11: Text Case Tests (NEW!)
+    addSection(body, '11. Text Case Conversion Tests');
+
+    body.appendParagraph('Select the text samples below and use Document Tools > Text Case menu to test conversions.');
+    body.appendParagraph('All conversions should preserve formatting (bold, italic, colors, etc.)');
+    body.appendParagraph('');
+
+    // Lower case test
+    const lowerTest = body.appendParagraph('LOWER CASE TEST: ');
+    const lowerSample = lowerTest.appendText('THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG');
+    lowerSample.setBold(true);
+    lowerSample.setForegroundColor('#FF0000');
+    body.appendParagraph('Expected after "Lower case": the quick brown fox jumps over the lazy dog (red, bold)');
+    body.appendParagraph('');
+
+    // Upper case test
+    const upperTest = body.appendParagraph('UPPER CASE TEST: ');
+    const upperSample = upperTest.appendText('the quick brown fox jumps over the lazy dog');
+    upperSample.setItalic(true);
+    upperSample.setForegroundColor('#0000FF');
+    body.appendParagraph('Expected after "Upper case": THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG (blue, italic)');
+    body.appendParagraph('');
+
+    // Initial Caps test
+    const initialTest = body.appendParagraph('INITIAL CAPS TEST: ');
+    const initialSample = initialTest.appendText('the quick brown fox jumps over the lazy dog');
+    initialSample.setUnderline(true);
+    initialSample.setForegroundColor('#00AA00');
+    body.appendParagraph('Expected after "Initial Caps": The Quick Brown Fox Jumps Over The Lazy Dog (green, underlined)');
+    body.appendParagraph('');
+
+    // Sentence case test
+    const sentenceTest = body.appendParagraph('SENTENCE CASE TEST: ');
+    const sentenceSample = sentenceTest.appendText('THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG');
+    sentenceSample.setBold(true);
+    sentenceSample.setItalic(true);
+    body.appendParagraph('Expected after "Sentence case": The quick brown fox jumps over the lazy dog (bold, italic)');
+    body.appendParagraph('');
+
+    // Title Case test - simple
+    const titleTest1 = body.appendParagraph('TITLE CASE TEST 1 (Simple): ');
+    const titleSample1 = titleTest1.appendText('the quick brown fox jumps over the lazy dog');
+    titleSample1.setForegroundColor('#AA00AA');
+    body.appendParagraph('Expected after "Title Case": The Quick Brown Fox Jumps over the Lazy Dog (purple)');
+    body.appendParagraph('');
+
+    // Title Case test - with articles and prepositions
+    const titleTest2 = body.appendParagraph('TITLE CASE TEST 2 (Articles): ');
+    const titleSample2 = titleTest2.appendText('a tale of two cities');
+    body.appendParagraph('Expected after "Title Case": A Tale of Two Cities');
+    body.appendParagraph('');
+
+    // Title Case test - with conjunctions
+    const titleTest3 = body.appendParagraph('TITLE CASE TEST 3 (Conjunctions): ');
+    const titleSample3 = titleTest3.appendText('the lord of the rings and the hobbit');
+    body.appendParagraph('Expected after "Title Case": The Lord of the Rings and the Hobbit');
+    body.appendParagraph('');
+
+    // Title Case test - with colon
+    const titleTest4 = body.appendParagraph('TITLE CASE TEST 4 (Colon): ');
+    const titleSample4 = titleTest4.appendText('the lord of the rings: the fellowship of the ring');
+    body.appendParagraph('Expected after "Title Case": The Lord of the Rings: The Fellowship of the Ring');
+    body.appendParagraph('');
+
+    // Title Case test - first and last words
+    const titleTest5 = body.appendParagraph('TITLE CASE TEST 5 (First/Last): ');
+    const titleSample5 = titleTest5.appendText('to be or not to be');
+    body.appendParagraph('Expected after "Title Case": To Be or Not to Be');
+    body.appendParagraph('');
+
+    // Mixed formatting test
+    const mixedTest = body.appendParagraph('MIXED FORMATTING TEST: ');
+    const mixedSample1 = mixedTest.appendText('THIS IS ');
+    mixedSample1.setBold(true);
+    const mixedSample2 = mixedTest.appendText('MIXED ');
+    mixedSample2.setItalic(true);
+    mixedSample2.setForegroundColor('#FF0000');
+    const mixedSample3 = mixedTest.appendText('FORMATTING');
+    mixedSample3.setUnderline(true);
+    body.appendParagraph('Expected: All case conversions preserve individual formatting of each word');
+    body.appendParagraph('');
+
     // Add summary
     body.appendParagraph('');
     const summary = body.appendParagraph('Test Summary');
     summary.setHeading(DocumentApp.ParagraphHeading.HEADING2);
 
-    body.appendParagraph('After running "Check Links", you should see:');
+    body.appendParagraph('After running "Check Links > In Entire Document", you should see:');
     body.appendParagraph('• Section 1: NO highlights on working HTTP/HTTPS links');
     body.appendParagraph('• Section 2: RED highlights on broken/404 links');
     body.appendParagraph('• Section 3: YELLOW highlights on Apple.com links');
@@ -196,6 +285,16 @@ function createTestDocument() {
     body.appendParagraph('• All Heading 2 paragraphs in Helvetica Neue Bold 14pt');
     body.appendParagraph('• All Normal text paragraphs in Helvetica Neue 11pt (not bold)');
     body.appendParagraph('• Section 10 should show the before/after difference clearly');
+
+    body.appendParagraph('');
+    body.appendParagraph('After testing "Text Case" conversions on Section 11:');
+    body.appendParagraph('• All text formatting (bold, italic, colors, underline) should be preserved');
+    body.appendParagraph('• Lower case: All letters become lowercase');
+    body.appendParagraph('• Upper case: All letters become uppercase');
+    body.appendParagraph('• Initial Caps: First letter of each word capitalized');
+    body.appendParagraph('• Sentence case: Only first letter capitalized');
+    body.appendParagraph('• Title Case: Chicago Style rules applied (see test expectations above)');
+    body.appendParagraph('• No completion alerts should appear (silent operation)');
 
     // Log the document URL
     Logger.log('Test document created: ' + doc.getUrl());
@@ -267,6 +366,15 @@ function validateTestResults() {
     Logger.log('2. All Heading 2 text is Helvetica Neue Bold 14pt');
     Logger.log('3. All Normal text is Helvetica Neue 11pt (not bold)');
     Logger.log('4. Section 10 paragraphs should show corrected fonts');
+    Logger.log('');
+    Logger.log('TEXT CASE CONVERSION RESULTS:');
+    Logger.log('1. All formatting (bold, italic, colors) preserved after conversion');
+    Logger.log('2. Lower case: All lowercase');
+    Logger.log('3. Upper case: All uppercase');
+    Logger.log('4. Initial Caps: First Letter Of Each Word');
+    Logger.log('5. Sentence case: First letter only');
+    Logger.log('6. Title Case: Chicago Style capitalization');
+    Logger.log('7. No alerts appear during text case conversions');
     Logger.log('');
     Logger.log('Check the document visually to confirm all expectations are met.');
 }
