@@ -24,8 +24,6 @@ writing-tools/
 
 ## Prerequisites
 
-- Node.js (version 14 or higher recommended)
-- npm or yarn package manager
 - Google account (for Google Docs Scripts)
 
 ## Installation
