@@ -10,6 +10,7 @@
  * - Highlights Apple.com links in yellow
  * - Detects underlined text without links (possible missing links) in purple
  * - Automatically formats all links with proper blue text and underline
+ * - Trims leading/trailing spaces from linked text (spaces remain as normal text)
  *
  * Valid non-HTTP protocols are skipped (not flagged as errors):
  * - mailto: (email links)
@@ -40,6 +41,8 @@
  * - The script may take a while if you have many links, as it checks each one individually
  * - Google Apps Script has rate limits on external URL fetches
  * - For documents with 100+ links, you might need to run it multiple times or add delays
+ * - Link formatting count only includes links that actually needed formatting changes
+ * - Space trimming preserves the spaces in the document but removes them from the link
  *
  * HOW TO SET IT UP:
  * 1. Open your Google Doc
@@ -53,6 +56,12 @@
  * - Click Document Tools > Check Links > In Entire Document (or In Active Tab)
  * - Click Document Tools > Fix Document Formatting
  * - Select text and use Document Tools > Text Case submenu for case changes
+ *
+ * VERSION: 2.0.0
+ * CHANGELOG:
+ * - v2.0.0: Added automatic trimming of leading/trailing spaces from links
+ *           Fixed link formatting count to only include links that needed changes
+ *           Improved accuracy of link formatting detection
  */
 
 // ============================================================================
@@ -264,17 +273,101 @@ function processSelectedText(transformFn, errorMessage = 'Please select some tex
 // ============================================================================
 
 /**
+ * Removes link formatting from leading/trailing spaces in linked text
+ * Keeps the spaces in the document as normal text
+ * Returns object with trimmedUrl and spacesTrimmed flag
+ */
+function trimLinkSpaces(link) {
+    const { url, startOffset, endOffset, element } = link;
+
+    // Get the actual text that is linked
+    const fullText = element.getText();
+    const linkedText = fullText.substring(startOffset, endOffset);
+
+    // Find where the actual non-space content starts and ends
+    let trimStart = 0;
+    let trimEnd = linkedText.length;
+
+    // Count leading spaces
+    while (trimStart < linkedText.length && linkedText[trimStart] === ' ') {
+        trimStart++;
+    }
+
+    // Count trailing spaces
+    while (trimEnd > trimStart && linkedText[trimEnd - 1] === ' ') {
+        trimEnd--;
+    }
+
+    // If there are no spaces to trim, return early
+    if (trimStart === 0 && trimEnd === linkedText.length) {
+        return { trimmedUrl: url, spacesTrimmed: false };
+    }
+
+    // Calculate the new link boundaries (excluding spaces)
+    const newStartOffset = startOffset + trimStart;
+    const newEndOffset = startOffset + trimEnd;
+
+    // Only proceed if we actually have content left after trimming
+    if (newStartOffset >= newEndOffset) {
+        return { trimmedUrl: url, spacesTrimmed: false };
+    }
+
+    // Remove the link from the entire original range
+    element.setLinkUrl(startOffset, endOffset - 1, null);
+
+    // Remove underline from the spaces (but keep the spaces themselves)
+    if (trimStart > 0) {
+        // Remove underline from leading spaces
+        element.setUnderline(startOffset, newStartOffset - 1, false);
+    }
+    if (trimEnd < linkedText.length) {
+        // Remove underline from trailing spaces
+        element.setUnderline(newEndOffset, endOffset - 1, false);
+    }
+
+    // Re-apply the link only to the trimmed text (not the spaces)
+    element.setLinkUrl(newStartOffset, newEndOffset - 1, url);
+
+    // Update the link object for subsequent processing
+    link.startOffset = newStartOffset;
+    link.endOffset = newEndOffset;
+
+    return { trimmedUrl: url, spacesTrimmed: true };
+}
+
+/**
  * Applies proper link formatting (blue text with underline)
  * Returns true if formatting was needed, false if already correct
  */
 function applyLinkFormatting(element, startOffset, endOffset) {
-    const currentColor = element.getForegroundColor(startOffset);
-    const currentUnderline = element.isUnderline(startOffset);
+    // Check the current formatting
+    let needsFormatting = false;
 
-    const needsFormatting = currentColor !== COLORS.LINK_BLUE || !currentUnderline;
+    // Check a few points across the range to see if formatting is needed
+    const checkPoints = [startOffset, Math.floor((startOffset + endOffset) / 2), endOffset - 1];
 
-    element.setForegroundColor(startOffset, endOffset - 1, COLORS.LINK_BLUE);
-    element.setUnderline(startOffset, endOffset - 1, true);
+    for (const pos of checkPoints) {
+        if (pos >= startOffset && pos < endOffset) {
+            const currentColor = element.getForegroundColor(pos);
+            const currentUnderline = element.isUnderline(pos);
+
+            // Check if this position has correct formatting
+            const isCorrectColor = currentColor === COLORS.LINK_BLUE ||
+                currentColor === '#1155cc' ||
+                currentColor === '#1155CC';
+
+            if (!isCorrectColor || !currentUnderline) {
+                needsFormatting = true;
+                break;
+            }
+        }
+    }
+
+    // Only apply formatting if it's actually needed
+    if (needsFormatting) {
+        element.setForegroundColor(startOffset, endOffset - 1, COLORS.LINK_BLUE);
+        element.setUnderline(startOffset, endOffset - 1, true);
+    }
 
     return needsFormatting;
 }
@@ -295,9 +388,9 @@ function isLinkBroken(url) {
 }
 
 /**
- * Processes a single link and returns classification
+ * Validates and formats a link (without trimming spaces - that's done separately)
  */
-function processLink(link) {
+function processLinkValidation(link) {
     const { url, startOffset, endOffset, element } = link;
     const urlLower = url.toLowerCase();
 
@@ -361,20 +454,33 @@ function checkLinks(scope) {
         extractUnderlinedText(child, underlinedText);
     }
 
-    // Process links and count results
+    // FIRST PASS: Trim spaces from links (in reverse order to preserve offsets)
+    let spacesTrimmedCount = 0;
+    for (let i = links.length - 1; i >= 0; i--) {
+        const link = links[i];
+        const { spacesTrimmed } = trimLinkSpaces(link);
+        if (spacesTrimmed) {
+            spacesTrimmedCount++;
+        }
+    }
+
+    // SECOND PASS: Process links for validation and formatting
     const counts = {
         broken: 0,
         apple: 0,
         skipped: 0,
         invalid: 0,
         formatted: 0,
-        missingLink: 0
+        missingLink: 0,
+        spacesTrimmed: spacesTrimmedCount
     };
 
     links.forEach(link => {
-        const result = processLink(link);
+        const result = processLinkValidation(link);
         counts[result.type]++;
-        if (result.needsFormatting) counts.formatted++;
+        if (result.needsFormatting) {
+            counts.formatted++;
+        }
     });
 
     // Highlight underlined text without links
@@ -388,6 +494,10 @@ function checkLinks(scope) {
         `Found ${counts.apple} Apple.com link(s) (highlighted in yellow)\n` +
         `Skipped ${counts.skipped} valid non-HTTP link(s) (email, phone, etc.)\n` +
         `Fixed formatting on ${counts.formatted} link(s)${scopeText}`;
+
+    if (counts.spacesTrimmed > 0) {
+        message += `\nTrimmed spaces from ${counts.spacesTrimmed} link(s)`;
+    }
 
     if (counts.invalid > 0) {
         message += `\nFound ${counts.invalid} invalid/malformed link(s) (highlighted in orange)`;

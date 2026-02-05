@@ -21,6 +21,8 @@
  * - Broken links: Should be highlighted in red
  * - Underlined text without links: Should be highlighted in purple
  * - Links should be formatted with blue text and underline
+ * - Links with leading/trailing spaces: Spaces removed from link but kept in document
+ * - Only links needing formatting changes should be counted in results
  *
  * FORMATTING:
  * - Heading 1 should become: Helvetica Neue Bold 24pt
@@ -33,7 +35,18 @@
  * - Initial Caps: Capitalizes first letter of each word
  * - Sentence case: Capitalizes only first letter
  * - Title Case (Chicago Style): Proper title capitalization
+ *
+ * VERSION: 2.0.0
+ * CHANGELOG:
+ * - v2.0.0: Added Section 9 to test link space trimming functionality
+ *           Added validation for accurate formatting count reporting
+ *           Updated test expectations and documentation
  */
+
+// Define the link blue color constant
+const COLORS = {
+    LINK_BLUE: '#1155CC'
+};
 
 function createTestDocument() {
     // Create a new document
@@ -151,16 +164,65 @@ function createTestDocument() {
 
     body.appendParagraph('');
 
-    // Section 9: Edge cases
-    addSection(body, '9. Edge Cases');
+    // Section 9: Links with leading/trailing spaces (NEW!)
+    addSection(body, '9. Links with Leading/Trailing Spaces (should be auto-trimmed)');
+
+    const spacePara1 = body.appendParagraph('• Link with leading space: ');
+    const leadingSpace = spacePara1.appendText(' Google Homepage');
+    leadingSpace.setLinkUrl('https://www.google.com');
+    leadingSpace.setForegroundColor(COLORS.LINK_BLUE);
+    leadingSpace.setUnderline(true);
+
+    const spacePara2 = body.appendParagraph('• Link with trailing space: ');
+    const trailingSpace = spacePara2.appendText('Wikipedia ');
+    trailingSpace.setLinkUrl('https://www.wikipedia.org');
+    trailingSpace.setForegroundColor(COLORS.LINK_BLUE);
+    trailingSpace.setUnderline(true);
+
+    const spacePara3 = body.appendParagraph('• Link with both leading and trailing spaces: ');
+    const bothSpaces = spacePara3.appendText('  GitHub  ');
+    bothSpaces.setLinkUrl('https://github.com');
+    bothSpaces.setForegroundColor(COLORS.LINK_BLUE);
+    bothSpaces.setUnderline(true);
+
+    const spacePara4 = body.appendParagraph('This sentence has');
+    const inlineLeading = spacePara4.appendText(' a link with leading space');
+    inlineLeading.setLinkUrl('https://www.google.com');
+    inlineLeading.setForegroundColor(COLORS.LINK_BLUE);
+    inlineLeading.setUnderline(true);
+    spacePara4.appendText(' in the middle of text.');
+
+    const spacePara5 = body.appendParagraph('This sentence has');
+    const inlineTrailing = spacePara5.appendText(' a link with trailing space ');
+    inlineTrailing.setLinkUrl('https://www.wikipedia.org');
+    inlineTrailing.setForegroundColor(COLORS.LINK_BLUE);
+    inlineTrailing.setUnderline(true);
+    spacePara5.appendText('in the middle of text.');
+
+    const spacePara6 = body.appendParagraph('Multiple spaces:');
+    const multiSpaces = spacePara6.appendText('   link with three spaces each side   ');
+    multiSpaces.setLinkUrl('https://github.com');
+    multiSpaces.setForegroundColor(COLORS.LINK_BLUE);
+    multiSpaces.setUnderline(true);
+    spacePara6.appendText('end.');
+
+    body.appendParagraph('Expected after running link checker:');
+    body.appendParagraph('• Spaces should remain in document as normal text');
+    body.appendParagraph('• Spaces should NOT be part of the link (not blue, not underlined)');
+    body.appendParagraph('• Only the actual text should be linked');
+    body.appendParagraph('• Script should report "Trimmed spaces from X link(s)"');
+    body.appendParagraph('');
+
+    // Section 10: Edge cases
+    addSection(body, '10. Edge Cases');
     addTestLink(body, 'HTTPS with subdomain', 'https://docs.google.com');
     addTestLink(body, 'HTTP (not HTTPS)', 'http://example.com');
     addTestLink(body, 'URL with query params', 'https://www.google.com/search?q=test');
     addTestLink(body, 'URL with anchor', 'https://en.wikipedia.org/wiki/Main_Page#mp-tfa');
     body.appendParagraph('');
 
-    // Section 10: Font formatting tests
-    addSection(body, '10. Font Formatting Tests (wrong fonts - should be fixed)');
+    // Section 11: Font formatting tests
+    addSection(body, '11. Font Formatting Tests (wrong fonts - should be fixed)');
 
     const wrongFont1 = body.appendParagraph('This is a Heading 1 in Times New Roman (should become Helvetica Neue Bold 24pt)');
     wrongFont1.setHeading(DocumentApp.ParagraphHeading.HEADING1);
@@ -181,8 +243,8 @@ function createTestDocument() {
 
     body.appendParagraph('');
 
-    // Section 11: Text Case Tests (NEW!)
-    addSection(body, '11. Text Case Conversion Tests');
+    // Section 12: Text Case Tests
+    addSection(body, '12. Text Case Conversion Tests');
 
     body.appendParagraph('Select the text samples below and use Document Tools > Text Case menu to test conversions.');
     body.appendParagraph('All conversions should preserve formatting (bold, italic, colors, etc.)');
@@ -277,17 +339,18 @@ function createTestDocument() {
     body.appendParagraph('• Section 6: PURPLE highlights on underlined text without links');
     body.appendParagraph('• Section 7: All links auto-fixed to blue and underlined');
     body.appendParagraph('• Section 8: Mixed highlights based on link types');
-    body.appendParagraph('• Section 9: NO highlights on edge case links (all should work)');
+    body.appendParagraph('• Section 9: Links trimmed, spaces remain as normal text (not blue/underlined)');
+    body.appendParagraph('• Section 10: NO highlights on edge case links (all should work)');
 
     body.appendParagraph('');
     body.appendParagraph('After running "Fix Document Formatting", you should see:');
     body.appendParagraph('• All Heading 1 paragraphs in Helvetica Neue Bold 24pt');
     body.appendParagraph('• All Heading 2 paragraphs in Helvetica Neue Bold 14pt');
     body.appendParagraph('• All Normal text paragraphs in Helvetica Neue 11pt (not bold)');
-    body.appendParagraph('• Section 10 should show the before/after difference clearly');
+    body.appendParagraph('• Section 11 should show the before/after difference clearly');
 
     body.appendParagraph('');
-    body.appendParagraph('After testing "Text Case" conversions on Section 11:');
+    body.appendParagraph('After testing "Text Case" conversions on Section 12:');
     body.appendParagraph('• All text formatting (bold, italic, colors, underline) should be preserved');
     body.appendParagraph('• Lower case: All letters become lowercase');
     body.appendParagraph('• Upper case: All letters become uppercase');
@@ -295,6 +358,11 @@ function createTestDocument() {
     body.appendParagraph('• Sentence case: Only first letter capitalized');
     body.appendParagraph('• Title Case: Chicago Style rules applied (see test expectations above)');
     body.appendParagraph('• No completion alerts should appear (silent operation)');
+
+    body.appendParagraph('');
+    body.appendParagraph('Expected message counts:');
+    body.appendParagraph('• "Fixed formatting on X link(s)" should only count links that actually needed formatting changes');
+    body.appendParagraph('• "Trimmed spaces from X link(s)" should count the 6 links in Section 9');
 
     // Log the document URL
     Logger.log('Test document created: ' + doc.getUrl());
@@ -359,13 +427,14 @@ function validateTestResults() {
     Logger.log('4. Section 5 links are ORANGE (invalid)');
     Logger.log('5. Section 6 underlined text is PURPLE (missing links)');
     Logger.log('6. Section 7 links are now BLUE and UNDERLINED (auto-fixed)');
-    Logger.log('7. Section 1 and 9 links have NO highlight (working)');
+    Logger.log('7. Section 1 and 10 links have NO highlight (working)');
+    Logger.log('8. Section 9 links have spaces trimmed (spaces remain but are not linked/underlined)');
     Logger.log('');
     Logger.log('FORMATTING RESULTS:');
     Logger.log('1. All Heading 1 text is Helvetica Neue Bold 24pt');
     Logger.log('2. All Heading 2 text is Helvetica Neue Bold 14pt');
     Logger.log('3. All Normal text is Helvetica Neue 11pt (not bold)');
-    Logger.log('4. Section 10 paragraphs should show corrected fonts');
+    Logger.log('4. Section 11 paragraphs should show corrected fonts');
     Logger.log('');
     Logger.log('TEXT CASE CONVERSION RESULTS:');
     Logger.log('1. All formatting (bold, italic, colors) preserved after conversion');
@@ -375,6 +444,10 @@ function validateTestResults() {
     Logger.log('5. Sentence case: First letter only');
     Logger.log('6. Title Case: Chicago Style capitalization');
     Logger.log('7. No alerts appear during text case conversions');
+    Logger.log('');
+    Logger.log('REPORTING ACCURACY:');
+    Logger.log('1. "Fixed formatting on X link(s)" only counts links that needed changes');
+    Logger.log('2. "Trimmed spaces from 6 link(s)" for Section 9');
     Logger.log('');
     Logger.log('Check the document visually to confirm all expectations are met.');
 }
