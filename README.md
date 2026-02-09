@@ -77,28 +77,4 @@ Contributions are welcome! Whether you have:
 
 Feel free to open an issue or submit a pull request.
 
-## Use Cases
-
-These tools are particularly useful for:
-- Authors working on long-form content
-- Technical writers managing documentation
-- Content creators with repetitive formatting needs
-- Anyone looking to automate parts of their writing workflow
-
-## Philosophy
-
-Built with a "works for me" approach, these tools solve specific problems encountered during real writing projects. They're designed to be:
-- **Practical**: Address actual pain points in the writing process
-- **Modifiable**: Easy to adapt for your specific needs
-- **Transparent**: Clear, readable code that's easy to understand and modify
-
-## Author
-
-**Charles Humble** ([@CHHUM](https://github.com/CHHUM))
-- Former software engineer, architect, and CTO
-- Senior leader in technology and content
-- [LinkedIn](https://linkedin.com/in/charleshumble)
-
----
-
-*Note: This is a personal toolkit and may require customization for your specific use case. Use at your own discretion.*
+***Note**: This is a personal toolkit and may require customization for your specific use case. Use at your own discretion.*
