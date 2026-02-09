@@ -2,25 +2,44 @@
 
 > Handy utilities for my authoring process. Mostly written with help from Claude rather than by hand.
 
-A collection of automation scripts and tools designed to streamline the writing and editing workflow, with a focus on Google Docs integration and text processing utilities.
+A collection of automation scripts and tools designed to streamline the writing and editing workflow, with a focus on Google Docs. This project was developed collaboratively with Claude AI, focusing on practical solutions for common authoring challenges. The codebase prioritises functionality and ease of modification over complex architecture. I set-up a template in Google Docs that has the various Macros attached to it and work from there; at some point I'll likely repackage this as an addon.
 
-## Overview
+The Utils are:  
+**Check Links**:  
+Checks all HTTP/HTTPS links for broken links (404 errors)  
+Highlights broken links in red   
+Highlights Apple.com links in yellow (Pages puts these in be default and I’m forever missing the odd one!  
+Detects underlined text without links (possible missing links) in purple   
+Automatically formats all links with proper blue text and underline   
+Trims leading/trailing spaces from linked text (spaces remain as normal text)
 
-This toolkit provides various utilities to enhance productivity during the authoring process, from automated formatting to text analysis and manipulation. Built pragmatically with AI assistance, these tools solve real-world writing challenges.
+Can be applied either to the active tab or the entire document.
 
-## Features
+Valid non-HTTP protocols are skipped (not flagged as errors):
+mailto: (email links)  
+tel: (phone numbers)  
+sms: (SMS links)  
+ftp: / sftp: (file transfer)  
+file: (local files)  
 
-- **Google Docs Scripts**: Custom Apps Script utilities for automating tasks in Google Docs
-- **Text Processing**: Node.js-based utilities for text manipulation and analysis
-- **Workflow Automation**: Tools to reduce repetitive tasks in the writing process
+Invalid/malformed links are flagged in orange:  
+Links that don't start with any recognized protocol  
+Typos like htp:// or htps://  
+Weird formats or broken URLs  
 
-## Project Structure
+**Fix Document Formatting**:  
+Applies consistent typography throughout the document  
+Heading 1: Helvetica Neue Bold 24pt  
+Heading 2: Helvetica Neue Bold 14pt  
+Normal Text: Helvetica Neue 11pt  
 
-```
-writing-tools/
-├── GoogleDocs Scripts/    # Apps Script files for Google Docs automation
-└── .idea/                # IDE configuration
-```
+TEXT CASE TOOLS:  
+**Lower case**: Converts selected text to lowercase  
+**Upper case**: Converts selected text to uppercase  
+**Initial Caps**: Capitalises the first letter of each word  
+**Sentence case**: Capitalises only the first letter of the selection  
+**Title Case** (Chicago Style): Proper title capitalisation following Chicago Manual of Style (more-or-less - to do this properly would be a lot of work but it has a reasonable stab at it!)
+
 
 ## Prerequisites
 
@@ -47,9 +66,6 @@ To use the Google Docs Scripts:
 5. Save and authorize the script
 6. Run from the custom menu or trigger
 
-## Development
-
-This project was developed collaboratively with Claude AI, focusing on practical solutions for common authoring challenges. The codebase prioritizes functionality and ease of modification over complex architecture.
 
 ### Contributing
 
@@ -75,14 +91,6 @@ Built with a "works for me" approach, these tools solve specific problems encoun
 - **Practical**: Address actual pain points in the writing process
 - **Modifiable**: Easy to adapt for your specific needs
 - **Transparent**: Clear, readable code that's easy to understand and modify
-
-## License
-
-MIT
-
-## Acknowledgments
-
-- Built with assistance from [Claude](https://claude.ai) by Anthropic
 
 ## Author
 
