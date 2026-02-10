@@ -29,6 +29,8 @@
  * - Heading 1: Helvetica Neue Bold 24pt
  * - Heading 2: Helvetica Neue Bold 14pt
  * - Normal Text: Helvetica Neue 11pt
+ * - Preserves character-level formatting (bold, underline, italic, etc.)
+ * - Only updates elements that need changes
  *
  * TEXT CASE TOOLS:
  * - Lower case: Converts selected text to lowercase
@@ -57,8 +59,10 @@
  * - Click Document Tools > Fix Document Formatting
  * - Select text and use Document Tools > Text Case submenu for case changes
  *
- * VERSION: 2.0.0
+ * VERSION: 2.1.0
  * CHANGELOG:
+ * - v2.1.0: Fixed list item formatting, preserved character-level formatting,
+ *           only updates elements that need changes
  * - v2.0.0: Added automatic trimming of leading/trailing spaces from links
  *           Fixed link formatting count to only include links that needed changes
  *           Improved accuracy of link formatting detection
@@ -523,42 +527,123 @@ function checkLinksInActiveTab() {
 // ============================================================================
 
 /**
+ * Checks if an element needs formatting by comparing current font settings
+ */
+function needsFormatting(element, targetStyle) {
+    const currentFont = element.getAttributes()[DocumentApp.Attribute.FONT_FAMILY];
+    const currentSize = element.getAttributes()[DocumentApp.Attribute.FONT_SIZE];
+
+    // For headings that should be bold, check if paragraph-level bold is set
+    const targetBold = targetStyle[DocumentApp.Attribute.BOLD];
+    const currentBold = element.getAttributes()[DocumentApp.Attribute.BOLD];
+
+    return currentFont !== targetStyle[DocumentApp.Attribute.FONT_FAMILY] ||
+        currentSize !== targetStyle[DocumentApp.Attribute.FONT_SIZE] ||
+        (targetBold !== undefined && currentBold !== targetBold);
+}
+
+/**
+ * Applies font formatting while preserving character-level formatting
+ */
+function applyFontFormatting(element, style) {
+    const text = element.editAsText();
+    const textContent = text.getText();
+
+    // Apply paragraph-level font family and size
+    element.setAttributes({
+        [DocumentApp.Attribute.FONT_FAMILY]: style[DocumentApp.Attribute.FONT_FAMILY],
+        [DocumentApp.Attribute.FONT_SIZE]: style[DocumentApp.Attribute.FONT_SIZE]
+    });
+
+    // For headings that should be bold, apply bold at paragraph level
+    if (style[DocumentApp.Attribute.BOLD] === true) {
+        element.setAttributes({
+            [DocumentApp.Attribute.BOLD]: true
+        });
+    } else if (style[DocumentApp.Attribute.BOLD] === false) {
+        // For normal text, remove paragraph-level bold but preserve character-level bold
+        // We need to check each character and preserve its individual bold state
+        const indices = text.getTextAttributeIndices();
+
+        // First, remove paragraph-level bold
+        element.setAttributes({
+            [DocumentApp.Attribute.BOLD]: false
+        });
+
+        // Then restore character-level bold where it existed
+        for (let i = 0; i < indices.length; i++) {
+            const startOffset = indices[i];
+            const endOffset = i + 1 < indices.length ? indices[i + 1] - 1 : textContent.length - 1;
+
+            // Get the bold state before we changed paragraph formatting
+            // We need to re-check after setting paragraph attributes
+            const wasBold = text.isBold(startOffset);
+            if (wasBold && endOffset >= startOffset) {
+                text.setBold(startOffset, endOffset, true);
+            }
+        }
+    }
+}
+
+/**
  * Applies consistent typography throughout the document
  * Heading 1: Helvetica Neue Bold 24pt
  * Heading 2: Helvetica Neue Bold 14pt
  * Normal Text: Helvetica Neue 11pt
+ * Preserves character-level formatting (bold, underline, italic, etc.)
  */
 function fixDocumentFormatting() {
     const doc = DocumentApp.getActiveDocument();
     const body = doc.getBody();
 
-    const counts = { h1: 0, h2: 0, normal: 0 };
+    const counts = { h1: 0, h2: 0, normal: 0, listItems: 0 };
     const numChildren = body.getNumChildren();
 
     for (let i = 0; i < numChildren; i++) {
         const child = body.getChild(i);
+        const childType = child.getType();
 
-        if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+        if (childType === DocumentApp.ElementType.PARAGRAPH) {
             const paragraph = child.asParagraph();
             const heading = paragraph.getHeading();
 
             if (heading === DocumentApp.ParagraphHeading.HEADING1) {
-                paragraph.setAttributes(DOCUMENT_STYLES.heading1);
-                counts.h1++;
+                if (needsFormatting(paragraph, DOCUMENT_STYLES.heading1)) {
+                    applyFontFormatting(paragraph, DOCUMENT_STYLES.heading1);
+                    counts.h1++;
+                }
             } else if (heading === DocumentApp.ParagraphHeading.HEADING2) {
-                paragraph.setAttributes(DOCUMENT_STYLES.heading2);
-                counts.h2++;
+                if (needsFormatting(paragraph, DOCUMENT_STYLES.heading2)) {
+                    applyFontFormatting(paragraph, DOCUMENT_STYLES.heading2);
+                    counts.h2++;
+                }
             } else if (heading === DocumentApp.ParagraphHeading.NORMAL) {
-                paragraph.setAttributes(DOCUMENT_STYLES.normal);
-                counts.normal++;
+                if (needsFormatting(paragraph, DOCUMENT_STYLES.normal)) {
+                    applyFontFormatting(paragraph, DOCUMENT_STYLES.normal);
+                    counts.normal++;
+                }
+            }
+        } else if (childType === DocumentApp.ElementType.LIST_ITEM) {
+            const listItem = child.asListItem();
+            if (needsFormatting(listItem, DOCUMENT_STYLES.normal)) {
+                applyFontFormatting(listItem, DOCUMENT_STYLES.normal);
+                counts.listItems++;
             }
         }
+    }
+
+    const totalChanges = counts.h1 + counts.h2 + counts.normal + counts.listItems;
+
+    if (totalChanges === 0) {
+        showAlert('Formatting Check Complete', 'All paragraphs and list items already have correct formatting. No changes needed.');
+        return;
     }
 
     const message = `Document formatting updated:\n` +
         `${counts.h1} Heading 1 paragraph(s) formatted (Helvetica Neue Bold 24pt)\n` +
         `${counts.h2} Heading 2 paragraph(s) formatted (Helvetica Neue Bold 14pt)\n` +
-        `${counts.normal} Normal text paragraph(s) formatted (Helvetica Neue 11pt)`;
+        `${counts.normal} Normal text paragraph(s) formatted (Helvetica Neue 11pt)\n` +
+        `${counts.listItems} List item(s) formatted (Helvetica Neue 11pt)`;
 
     showAlert('Formatting Complete', message);
 }
