@@ -35,9 +35,14 @@
  * - Initial Caps: Capitalizes first letter of each word
  * - Sentence case: Capitalizes only first letter
  * - Title Case (Chicago Style): Proper title capitalization
+ * - All conversions preserve paragraph-level heading styles (Heading 1, Heading 2, etc.)
+ * - All conversions preserve the selection highlight on the full selected range after conversion
  *
- * VERSION: 2.0.0
+ * VERSION: 2.1.0
  * CHANGELOG:
+ * - v2.1.0: Added heading style preservation tests to Section 12
+ *           Added selection highlight consistency tests to Section 12
+ *           Updated expected results and validation to reflect v2.4.0 of Document Tools
  * - v2.0.0: Added Section 9 to test link space trimming functionality
  *           Added validation for accurate formatting count reporting
  *           Updated test expectations and documentation
@@ -104,7 +109,7 @@ function createTestDocument() {
     addSection(body, '6. Underlined Text Without Links (should be PURPLE)');
 
     const underlinedPara1 = body.appendParagraph('• This is underlined text but has no link');
-    underlinedPara1.editAsText().setUnderline(2, 40, true); // Underline "This is underlined text but has no link"
+    underlinedPara1.editAsText().setUnderline(2, 40, true);
 
     const underlinedPara2 = body.appendParagraph('• Another example of underlined text');
     underlinedPara2.editAsText().setUnderline(2, 34, true);
@@ -164,7 +169,7 @@ function createTestDocument() {
 
     body.appendParagraph('');
 
-    // Section 9: Links with leading/trailing spaces (NEW!)
+    // Section 9: Links with leading/trailing spaces
     addSection(body, '9. Links with Leading/Trailing Spaces (should be auto-trimmed)');
 
     const spacePara1 = body.appendParagraph('• Link with leading space: ');
@@ -247,7 +252,10 @@ function createTestDocument() {
     addSection(body, '12. Text Case Conversion Tests');
 
     body.appendParagraph('Select the text samples below and use Document Tools > Text Case menu to test conversions.');
-    body.appendParagraph('All conversions should preserve formatting (bold, italic, colors, etc.)');
+    body.appendParagraph('All conversions should:');
+    body.appendParagraph('  • Preserve character-level formatting (bold, italic, colors, underline)');
+    body.appendParagraph('  • Preserve paragraph-level heading styles (Heading 1, Heading 2, etc.)');
+    body.appendParagraph('  • Leave the full selected range highlighted after conversion');
     body.appendParagraph('');
 
     // Lower case test
@@ -313,6 +321,53 @@ function createTestDocument() {
     body.appendParagraph('Expected after "Title Case": To Be or Not to Be');
     body.appendParagraph('');
 
+    // Heading style preservation tests
+    addSection(body, '12a. Heading Style Preservation Tests');
+    body.appendParagraph('Select ONLY the text of each heading below (not this paragraph) and apply a case conversion.');
+    body.appendParagraph('The heading style (size, bold) must be preserved after conversion.');
+    body.appendParagraph('');
+
+    const headingCaseTest1 = body.appendParagraph('THIS IS A HEADING ONE IN UPPER CASE');
+    headingCaseTest1.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    body.appendParagraph('Expected after "Lower case": this is a heading one in upper case — still Heading 1 (Helvetica Neue Bold 24pt)');
+    body.appendParagraph('');
+
+    const headingCaseTest2 = body.appendParagraph('this is a heading two in lower case');
+    headingCaseTest2.setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    body.appendParagraph('Expected after "Upper case": THIS IS A HEADING TWO IN LOWER CASE — still Heading 2 (Helvetica Neue Bold 14pt)');
+    body.appendParagraph('');
+
+    const headingCaseTest3 = body.appendParagraph('the lord of the rings: the two towers');
+    headingCaseTest3.setHeading(DocumentApp.ParagraphHeading.HEADING2);
+    body.appendParagraph('Expected after "Title Case": The Lord of the Rings: The Two Towers — still Heading 2 (Helvetica Neue Bold 14pt)');
+    body.appendParagraph('');
+
+    // Selection highlight consistency tests
+    addSection(body, '12b. Selection Highlight Consistency Tests');
+    body.appendParagraph('For each test below, select the sample text and apply the named conversion.');
+    body.appendParagraph('After conversion, the FULL selected text should remain highlighted — not just part of it, and the cursor should not jump to the start of the word.');
+    body.appendParagraph('');
+
+    const highlightTest1 = body.appendParagraph('UPPER CASE HIGHLIGHT TEST: ');
+    highlightTest1.appendText('social media');
+    body.appendParagraph('Select "social media", apply Upper case. Expected: "SOCIAL MEDIA" fully highlighted after conversion.');
+    body.appendParagraph('');
+
+    const highlightTest2 = body.appendParagraph('LOWER CASE HIGHLIGHT TEST: ');
+    highlightTest2.appendText('SOCIAL MEDIA');
+    body.appendParagraph('Select "SOCIAL MEDIA", apply Lower case. Expected: "social media" fully highlighted after conversion.');
+    body.appendParagraph('');
+
+    const highlightTest3 = body.appendParagraph('INITIAL CAPS HIGHLIGHT TEST: ');
+    highlightTest3.appendText('SOCIAL MEDIA STRATEGY');
+    body.appendParagraph('Select "SOCIAL MEDIA STRATEGY", apply Initial Caps. Expected: "Social Media Strategy" fully highlighted after conversion.');
+    body.appendParagraph('');
+
+    const highlightTest4 = body.appendParagraph('MULTI-WORD HIGHLIGHT TEST: ');
+    highlightTest4.appendText('Social Social Social');
+    body.appendParagraph('Select all three words, apply Upper case. Expected: "SOCIAL SOCIAL SOCIAL" fully highlighted — last character must be included.');
+    body.appendParagraph('');
+
     // Mixed formatting test
     const mixedTest = body.appendParagraph('MIXED FORMATTING TEST: ');
     const mixedSample1 = mixedTest.appendText('THIS IS ');
@@ -351,13 +406,14 @@ function createTestDocument() {
 
     body.appendParagraph('');
     body.appendParagraph('After testing "Text Case" conversions on Section 12:');
-    body.appendParagraph('• All text formatting (bold, italic, colors, underline) should be preserved');
+    body.appendParagraph('• Character-level formatting (bold, italic, colors, underline) preserved');
+    body.appendParagraph('• Paragraph-level heading styles (Heading 1, Heading 2) preserved — see Section 12a');
+    body.appendParagraph('• Full selected range remains highlighted after conversion for ALL five case functions — see Section 12b');
     body.appendParagraph('• Lower case: All letters become lowercase');
     body.appendParagraph('• Upper case: All letters become uppercase');
     body.appendParagraph('• Initial Caps: First letter of each word capitalized');
     body.appendParagraph('• Sentence case: Only first letter capitalized');
     body.appendParagraph('• Title Case: Chicago Style rules applied (see test expectations above)');
-    body.appendParagraph('• No completion alerts should appear (silent operation)');
 
     body.appendParagraph('');
     body.appendParagraph('Expected message counts:');
@@ -414,9 +470,6 @@ function onOpen() {
  * Run this AFTER running the Document Tools on the test document
  */
 function validateTestResults() {
-    const doc = DocumentApp.getActiveDocument();
-    const body = doc.getBody();
-
     Logger.log('=== Test Validation ===');
     Logger.log('Open the document and verify:');
     Logger.log('');
@@ -437,13 +490,14 @@ function validateTestResults() {
     Logger.log('4. Section 11 paragraphs should show corrected fonts');
     Logger.log('');
     Logger.log('TEXT CASE CONVERSION RESULTS:');
-    Logger.log('1. All formatting (bold, italic, colors) preserved after conversion');
-    Logger.log('2. Lower case: All lowercase');
-    Logger.log('3. Upper case: All uppercase');
-    Logger.log('4. Initial Caps: First Letter Of Each Word');
-    Logger.log('5. Sentence case: First letter only');
-    Logger.log('6. Title Case: Chicago Style capitalization');
-    Logger.log('7. No alerts appear during text case conversions');
+    Logger.log('1. Character-level formatting (bold, italic, colors) preserved after conversion');
+    Logger.log('2. Paragraph-level heading styles preserved after conversion (Section 12a)');
+    Logger.log('3. Full selected range remains highlighted after conversion for all five case functions (Section 12b)');
+    Logger.log('4. Lower case: All lowercase');
+    Logger.log('5. Upper case: All uppercase');
+    Logger.log('6. Initial Caps: First Letter Of Each Word');
+    Logger.log('7. Sentence case: First letter only');
+    Logger.log('8. Title Case: Chicago Style capitalization');
     Logger.log('');
     Logger.log('REPORTING ACCURACY:');
     Logger.log('1. "Fixed formatting on X link(s)" only counts links that needed changes');
