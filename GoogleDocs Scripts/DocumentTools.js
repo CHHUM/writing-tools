@@ -57,10 +57,12 @@
  * TO USE IT:
  * - Click Document Tools > Check Links > In Entire Document (or In Active Tab)
  * - Click Document Tools > Fix Document Formatting
+ * - Click Document Tools > Remove Any Highlights
  * - Select text and use Document Tools > Text Case submenu for case changes
  *
- * VERSION: 2.1.0
+ * VERSION: 2.2.0
  * CHANGELOG:
+ * - v2.2.0: Added Remove Any Highlights function for active tab
  * - v2.1.0: Fixed list item formatting, preserved character-level formatting,
  *           only updates elements that need changes
  * - v2.0.0: Added automatic trimming of leading/trailing spaces from links
@@ -122,6 +124,7 @@ function onOpen() {
             .addItem('In Entire Document', 'checkLinksInDocument'))
         .addSeparator()
         .addItem('Fix Document Formatting', 'fixDocumentFormatting')
+        .addItem('Remove Any Highlights', 'removeHighlights')
         .addSeparator()
         .addSubMenu(DocumentApp.getUi().createMenu('Text Case')
             .addItem('Lower case', 'convertToLowerCase')
@@ -646,6 +649,43 @@ function fixDocumentFormatting() {
         `${counts.listItems} List item(s) formatted (Helvetica Neue 11pt)`;
 
     showAlert('Formatting Complete', message);
+}
+
+/**
+ * Removes all highlight colours from the active tab
+ */
+function removeHighlights() {
+    const body = getDocumentBody('tab');
+    if (!body) return;
+
+    const numChildren = body.getNumChildren();
+    for (let i = 0; i < numChildren; i++) {
+        const child = body.getChild(i);
+        removeHighlightsFromElement(child);
+    }
+
+    showAlert('Highlights Removed', 'All highlights have been removed from the active tab.');
+}
+
+/**
+ * Recursively removes background colour from all text elements
+ */
+function removeHighlightsFromElement(element) {
+    if (element.getType() === DocumentApp.ElementType.TEXT) {
+        const text = element.asText();
+        const length = text.getText().length;
+        if (length > 0) {
+            text.setBackgroundColor(0, length - 1, null);
+        }
+        return;
+    }
+
+    if (element.getNumChildren) {
+        const numChildren = element.getNumChildren();
+        for (let i = 0; i < numChildren; i++) {
+            removeHighlightsFromElement(element.getChild(i));
+        }
+    }
 }
 
 // ============================================================================
