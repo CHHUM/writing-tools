@@ -60,8 +60,13 @@
  * - Click Document Tools > Remove Any Highlights
  * - Select text and use Document Tools > Text Case submenu for case changes
  *
- * VERSION: 2.2.0
+ * VERSION: 2.4.0
  * CHANGELOG:
+ * - v2.4.0: Fixed inconsistent post-conversion highlight behaviour in text case functions
+ *           by explicitly restoring the selection after mutations, rather than relying
+ *           on Google Apps Script to maintain it through deleteText/insertText operations
+ * - v2.3.0: Fixed text case functions preserving paragraph heading styles (e.g. Heading 1)
+ *           Fixed off-by-one error in text case functions by iterating in reverse
  * - v2.2.0: Added Remove Any Highlights function for active tab
  * - v2.1.0: Fixed list item formatting, preserved character-level formatting,
  *           only updates elements that need changes
@@ -237,10 +242,15 @@ function extractUnderlinedText(element, underlinedText) {
 }
 
 /**
- * Processes selected text with a transformation function while preserving formatting
+ * Processes selected text with a transformation function while preserving formatting.
+ * Iterates in reverse to avoid offset shifts caused by deleteText/insertText operations.
+ * Preserves paragraph-level heading styles which can be stripped by character mutations.
+ * Explicitly restores the selection after mutations, as Google Apps Script does not
+ * reliably maintain it through deleteText/insertText operations.
  */
 function processSelectedText(transformFn, errorMessage = 'Please select some text first.') {
-    const selection = DocumentApp.getActiveDocument().getSelection();
+    const doc = DocumentApp.getActiveDocument();
+    const selection = doc.getSelection();
 
     if (!selection) {
         showAlert('No Selection', errorMessage);
@@ -248,6 +258,9 @@ function processSelectedText(transformFn, errorMessage = 'Please select some tex
     }
 
     const elements = selection.getRangeElements();
+
+    // Build a range to restore the selection after all mutations are done
+    const rangeBuilder = doc.newRange();
 
     for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
@@ -260,8 +273,15 @@ function processSelectedText(transformFn, errorMessage = 'Please select some tex
             const selectedText = text.getText().substring(startOffset, endOffset + 1);
             const transformedText = transformFn(selectedText);
 
-            // Update character by character to preserve formatting
-            for (let j = 0; j <= endOffset - startOffset; j++) {
+            // Preserve paragraph-level heading style before making changes,
+            // as deleteText/insertText can strip it
+            const parent = element.getElement().getParent();
+            const headingStyle = (parent && parent.getType() === DocumentApp.ElementType.PARAGRAPH)
+                ? parent.asParagraph().getHeading()
+                : null;
+
+            // Iterate in reverse to avoid offset shifts from delete/insert operations
+            for (let j = endOffset - startOffset; j >= 0; j--) {
                 const pos = startOffset + j;
                 const originalChar = selectedText.charAt(j);
                 const newChar = transformedText.charAt(j);
@@ -271,8 +291,23 @@ function processSelectedText(transformFn, errorMessage = 'Please select some tex
                     text.insertText(pos, newChar);
                 }
             }
+
+            // Restore heading style if it was stripped by the mutations above
+            if (headingStyle !== null && parent) {
+                const currentHeading = parent.asParagraph().getHeading();
+                if (currentHeading !== headingStyle) {
+                    parent.asParagraph().setHeading(headingStyle);
+                }
+            }
+
+            // Add this element's range so we can restore the selection below
+            rangeBuilder.addElement(text, startOffset, endOffset);
         }
     }
+
+    // Explicitly restore the selection over the original range, since Google Apps
+    // Script does not reliably maintain it through deleteText/insertText operations
+    doc.setSelection(rangeBuilder.build());
 }
 
 // ============================================================================
