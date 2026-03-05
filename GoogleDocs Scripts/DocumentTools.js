@@ -662,7 +662,7 @@ function convertToUpperCase() {
 
 function convertToInitialCaps() {
     processSelectedText(text => {
-        return text.replace(/\b\w/g, char => char.toUpperCase());
+        return text.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
     });
 }
 
