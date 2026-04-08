@@ -26,6 +26,7 @@
  *
  * DOCUMENT FORMATTING:
  * - Applies consistent typography throughout the document
+ * - Removes runs of 2+ spaces anywhere in the document
  * - Heading 1: Helvetica Neue Bold 24pt
  * - Heading 2: Helvetica Neue Bold 14pt
  * - Normal Text: Helvetica Neue 11pt
@@ -60,8 +61,9 @@
  * - Click Document Tools > Remove Any Highlights
  * - Select text and use Document Tools > Text Case submenu for case changes
  *
- * VERSION: 2.4.0
+ * VERSION: 2.5.0
  * CHANGELOG:
+ * - v2.5.0: Fix Document Formatting now removes runs of 2+ spaces throughout the document
  * - v2.4.0: Fixed inconsistent post-conversion highlight behaviour in text case functions
  *           by explicitly restoring the selection after mutations, rather than relying
  *           on Google Apps Script to maintain it through deleteText/insertText operations
@@ -624,15 +626,58 @@ function applyFontFormatting(element, style) {
 }
 
 /**
+ * Recursively removes runs of 2+ spaces from all text elements,
+ * working in reverse so deletions don't shift subsequent offsets.
+ * Returns the number of extra spaces removed.
+ */
+function removeExtraSpacesFromElement(element) {
+    if (element.getType() === DocumentApp.ElementType.TEXT) {
+        const text = element.asText();
+        const str = text.getText();
+
+        // Collect positions of every extra space (the second, third… in a run),
+        // scanning right-to-left so we can delete without disturbing earlier positions.
+        const toDelete = [];
+        for (let i = str.length - 1; i >= 1; i--) {
+            if (str[i] === ' ' && str[i - 1] === ' ') {
+                toDelete.push(i); // already in descending order
+            }
+        }
+
+        for (const pos of toDelete) {
+            text.deleteText(pos, pos);
+        }
+
+        return toDelete.length;
+    }
+
+    let count = 0;
+    if (element.getNumChildren) {
+        for (let i = 0; i < element.getNumChildren(); i++) {
+            count += removeExtraSpacesFromElement(element.getChild(i));
+        }
+    }
+    return count;
+}
+
+/**
  * Applies consistent typography throughout the document
  * Heading 1: Helvetica Neue Bold 24pt
  * Heading 2: Helvetica Neue Bold 14pt
  * Normal Text: Helvetica Neue 11pt
  * Preserves character-level formatting (bold, underline, italic, etc.)
+ * Removes runs of 2+ spaces anywhere in the document
  */
 function fixDocumentFormatting() {
     const doc = DocumentApp.getActiveDocument();
     const body = doc.getBody();
+
+    // Remove extra spaces throughout the document
+    let spacesRemoved = 0;
+    const numChildrenForSpaces = body.getNumChildren();
+    for (let i = 0; i < numChildrenForSpaces; i++) {
+        spacesRemoved += removeExtraSpacesFromElement(body.getChild(i));
+    }
 
     const counts = { h1: 0, h2: 0, normal: 0, listItems: 0 };
     const numChildren = body.getNumChildren();
@@ -672,16 +717,20 @@ function fixDocumentFormatting() {
 
     const totalChanges = counts.h1 + counts.h2 + counts.normal + counts.listItems;
 
-    if (totalChanges === 0) {
+    if (totalChanges === 0 && spacesRemoved === 0) {
         showAlert('Formatting Check Complete', 'All paragraphs and list items already have correct formatting. No changes needed.');
         return;
     }
 
-    const message = `Document formatting updated:\n` +
+    let message = `Document formatting updated:\n` +
         `${counts.h1} Heading 1 paragraph(s) formatted (Helvetica Neue Bold 24pt)\n` +
         `${counts.h2} Heading 2 paragraph(s) formatted (Helvetica Neue Bold 14pt)\n` +
         `${counts.normal} Normal text paragraph(s) formatted (Helvetica Neue 11pt)\n` +
         `${counts.listItems} List item(s) formatted (Helvetica Neue 11pt)`;
+
+    if (spacesRemoved > 0) {
+        message += `\n${spacesRemoved} extra space(s) removed`;
+    }
 
     showAlert('Formatting Complete', message);
 }
